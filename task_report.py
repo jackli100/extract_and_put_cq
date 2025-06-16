@@ -22,12 +22,13 @@ import argparse
 import re
 import sys
 from collections import defaultdict
-from typing import Iterable
+from typing import Iterable, List
 
 try:
     import pandas as pd
+    import matplotlib.pyplot as plt
 except Exception:
-    sys.stderr.write("pandas is required to run this script\n")
+    sys.stderr.write("pandas and matplotlib are required to run this script\n")
     raise
 
 
@@ -123,23 +124,83 @@ def compute_unreturned(required_tasks, returned_tasks):
     return remaining
 
 
-def save_report(remaining: Iterable[tuple[str, str]], output_file: str) -> None:
+def compute_summary(required_tasks, returned_tasks):
+    required_map: defaultdict[str, set[str]] = defaultdict(set)
+    for form_no, index in required_tasks:
+        required_map[form_no].add(index)
+
+    summary = []
+    remaining = []
+    for form_no in sorted(required_map):
+        required_indices = required_map[form_no]
+        returned_indices = returned_tasks.get(form_no, set())
+        if "AL" in returned_indices:
+            returned_count = len(required_indices)
+            missing_indices: List[str] = []
+        else:
+            missing_indices = sorted(required_indices - returned_indices)
+            returned_count = len(required_indices) - len(missing_indices)
+        ratio = (
+            returned_count / len(required_indices)
+            if required_indices
+            else 0
+        )
+        summary.append(
+            {
+                "Form": form_no,
+                "Required": len(required_indices),
+                "Returned": returned_count,
+                "Missing": " ".join(missing_indices),
+                "Ratio": ratio,
+            }
+        )
+        for index in missing_indices:
+            remaining.append((form_no, index))
+    return remaining, summary
+
+
+def save_report(
+    remaining: Iterable[tuple[str, str]],
+    summary: List[dict],
+    output_file: str,
+) -> None:
     """Save a visual report of remaining tasks to ``output_file``.
 
     The report contains a sheet listing each remaining task and a summary
-    sheet with counts per form number.
+    sheet with counts per form number and return ratios.
     """
     if not remaining:
         df = pd.DataFrame(columns=["Form", "TaskIndex"])
     else:
         df = pd.DataFrame(remaining, columns=["Form", "TaskIndex"])
-    summary = df.groupby("Form", as_index=False)["TaskIndex"].count()
+    summary_df = pd.DataFrame(summary)
     try:
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Remaining")
-            summary.to_excel(writer, index=False, sheet_name="Summary")
+            summary_df.to_excel(writer, index=False, sheet_name="Summary")
     except Exception as e:
         sys.stderr.write(f"Failed to write report '{output_file}': {e}\n")
+
+
+def save_bar_chart(summary: List[dict], chart_file: str) -> None:
+    """Save a bar chart of return ratios for each form."""
+    if not summary:
+        return
+    forms = [item["Form"] for item in summary]
+    ratios = [item["Ratio"] for item in summary]
+    plt.figure(figsize=(max(6, len(forms) * 0.6), 4))
+    plt.bar(forms, ratios, color="skyblue")
+    plt.ylim(0, 1)
+    plt.xlabel("Form")
+    plt.ylabel("Returned / Required")
+    plt.title("Return Ratio by Form")
+    plt.tight_layout()
+    try:
+        plt.savefig(chart_file)
+    except Exception as e:
+        sys.stderr.write(f"Failed to save chart '{chart_file}': {e}\n")
+    finally:
+        plt.close()
 
 
 def main(argv=None):
@@ -159,6 +220,11 @@ def main(argv=None):
         "--output",
         help="Write an Excel report to this file",
     )
+    parser.add_argument(
+        "-c",
+        "--chart",
+        help="Save a bar chart of return ratios to this PNG file",
+    )
     args = parser.parse_args(argv)
 
     required = _load_required_tasks(args.zs)
@@ -168,17 +234,19 @@ def main(argv=None):
     if not returned:
         sys.stderr.write("No returned task information loaded or file missing.\n")
 
-    remaining = compute_unreturned(required, returned)
+    remaining, summary = compute_summary(required, returned)
     if args.output:
-        save_report(remaining, args.output)
+        save_report(remaining, summary, args.output)
         print(f"Report written to {args.output}")
+    if args.chart:
+        save_bar_chart(summary, args.chart)
+        print(f"Chart saved to {args.chart}")
 
-    if remaining:
-        print("Tasks still to be returned:")
-        for form_no, index in remaining:
-            print(f"{form_no}{index}")
-    else:
-        print("All tasks have been returned.")
+    for idx, item in enumerate(summary, 1):
+        if not item["Missing"]:
+            print(f"{idx}: \u5168\u9f50")  # 全齐
+        else:
+            print(f"{idx}: \u7f3a{item['Missing']}")  # 缺...
 
 
 if __name__ == "__main__":
