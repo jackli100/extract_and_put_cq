@@ -64,28 +64,46 @@ TASK_TEXT_RE = re.compile(r"(\d+)[-－](\d+)")
 
 
 def _load_required_tasks(filename: str = DEFAULT_ZS_FILE):
+    """Load required tasks from the ZS workbook.
+
+    Returns a mapping ``{(form_no, index): category}`` where ``category`` is
+    either ``"\u9053\u8def\u6284\u5e73"`` (road levelling), ``"\u6838\u8865\u5730\u5f62"``
+    (terrain check) or ``None`` when no keywords match.
+    """
     try:
         xls = pd.ExcelFile(filename)
     except FileNotFoundError:
         sys.stderr.write(f"File '{filename}' not found\n")
-        return set()
+        return {}
     except Exception as e:
         sys.stderr.write(f"Failed to read '{filename}': {e}\n")
-        return set()
+        return {}
 
-    tasks = set()
+    ROAD_LEVEL = "\u9053\u8def\u6284\u5e73"  # 道路抄平
+    TERRAIN = "\u6838\u8865\u5730\u5f62"  # 核补地形
+
+    tasks: dict[tuple[str, str], str | None] = {}
     for sheet in xls.sheet_names:
         if not re.match(r"\d+", sheet):
             continue  # skip summary or other sheets
         df = xls.parse(sheet, header=None)
         for row in df.itertuples(index=False):
-            for cell in row:
-                if isinstance(cell, str):
-                    m = TASK_TEXT_RE.search(cell)
-                    if m:
-                        form_no, index = m.groups()
-                        tasks.add((form_no.zfill(2), index.zfill(2)))
-                        break
+            cells = [c for c in row if isinstance(c, str)]
+            if not cells:
+                continue
+            # Determine classification based on keywords in the row
+            classification = None
+            row_text = "".join(cells)
+            if "\u6284\u5e73" in row_text or "\u8d85\u5e73" in row_text:
+                classification = ROAD_LEVEL
+            elif "\u6838\u8865" in row_text:
+                classification = TERRAIN
+            for cell in cells:
+                m = TASK_TEXT_RE.search(cell)
+                if m:
+                    form_no, index = m.groups()
+                    tasks[(form_no.zfill(2), index.zfill(2))] = classification
+                    break
     return tasks
 
 
@@ -111,8 +129,9 @@ def _load_returned_tasks(filename: str = DEFAULT_RETURNED_FILE):
 
 
 def compute_unreturned(required_tasks, returned_tasks):
+    """Return a list of unreturned task identifiers."""
     remaining = []
-    for form_no, index in sorted(required_tasks):
+    for (form_no, index) in sorted(required_tasks):
         returned_indices = returned_tasks.get(form_no)
         if not returned_indices:
             remaining.append((form_no, index))
@@ -125,14 +144,26 @@ def compute_unreturned(required_tasks, returned_tasks):
 
 
 def compute_summary(required_tasks, returned_tasks):
-    required_map: defaultdict[str, set[str]] = defaultdict(set)
-    for form_no, index in required_tasks:
-        required_map[form_no].add(index)
+    """Compute remaining tasks and per-form summary.
+
+    ``required_tasks`` is a mapping ``{(form_no, index): category}``.
+    ``returned_tasks`` maps form numbers to sets of returned indices or
+    ``{"AL"}`` when all are returned.
+
+    Returns a tuple ``(remaining, summary, categories)`` where ``categories``
+    lists totals and returned counts for each recognised category.
+    """
+    required_map: defaultdict[str, dict[str, str | None]] = defaultdict(dict)
+    for (form_no, index), category in required_tasks.items():
+        required_map[form_no][index] = category
 
     summary = []
     remaining = []
+    class_total: defaultdict[str, int] = defaultdict(int)
+    class_returned: defaultdict[str, int] = defaultdict(int)
     for form_no in sorted(required_map):
-        required_indices = required_map[form_no]
+        tasks = required_map[form_no]
+        required_indices = set(tasks.keys())
         returned_indices = returned_tasks.get(form_no, set())
         if "AL" in returned_indices:
             returned_count = len(required_indices)
@@ -154,14 +185,24 @@ def compute_summary(required_tasks, returned_tasks):
                 "Ratio": ratio,
             }
         )
-        for index in missing_indices:
-            remaining.append((form_no, index))
-    return remaining, summary
+        for idx, cat in tasks.items():
+            if cat:
+                class_total[cat] += 1
+                if "AL" in returned_indices or idx in returned_indices:
+                    class_returned[cat] += 1
+            if idx in missing_indices:
+                remaining.append((form_no, idx))
+    category_summary = [
+        {"Category": k, "Total": class_total[k], "Returned": class_returned.get(k, 0)}
+        for k in class_total
+    ]
+    return remaining, summary, category_summary
 
 
 def save_report(
     remaining: Iterable[tuple[str, str]],
     summary: List[dict],
+    categories: List[dict],
     output_file: str,
 ) -> None:
     """Save a visual report of remaining tasks to ``output_file``.
@@ -174,10 +215,13 @@ def save_report(
     else:
         df = pd.DataFrame(remaining, columns=["Form", "TaskIndex"])
     summary_df = pd.DataFrame(summary)
+    category_df = pd.DataFrame(categories)
     try:
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Remaining")
             summary_df.to_excel(writer, index=False, sheet_name="Summary")
+            if not category_df.empty:
+                category_df.to_excel(writer, index=False, sheet_name="Category")
     except Exception as e:
         sys.stderr.write(f"Failed to write report '{output_file}': {e}\n")
 
@@ -234,9 +278,9 @@ def main(argv=None):
     if not returned:
         sys.stderr.write("No returned task information loaded or file missing.\n")
 
-    remaining, summary = compute_summary(required, returned)
+    remaining, summary, categories = compute_summary(required, returned)
     if args.output:
-        save_report(remaining, summary, args.output)
+        save_report(remaining, summary, categories, args.output)
         print(f"Report written to {args.output}")
     if args.chart:
         save_bar_chart(summary, args.chart)
@@ -247,6 +291,13 @@ def main(argv=None):
             print(f"{idx}: \u5168\u9f50")  # 全齐
         else:
             print(f"{idx}: \u7f3a{item['Missing']}")  # 缺...
+
+    if categories:
+        print("\u5206\u7c7b\u7edf\u8ba1:")  # 分类统计
+        for cat in categories:
+            print(
+                f"{cat['Category']}: {cat['Returned']}/{cat['Total']}"
+            )
 
 
 if __name__ == "__main__":
