@@ -22,6 +22,7 @@ import argparse
 import re
 import sys
 from collections import defaultdict
+from typing import Iterable
 
 try:
     import pandas as pd
@@ -116,6 +117,25 @@ def compute_unreturned(required_tasks, returned_tasks):
     return remaining
 
 
+def save_report(remaining: Iterable[tuple[str, str]], output_file: str) -> None:
+    """Save a visual report of remaining tasks to ``output_file``.
+
+    The report contains a sheet listing each remaining task and a summary
+    sheet with counts per form number.
+    """
+    if not remaining:
+        df = pd.DataFrame(columns=["Form", "TaskIndex"])
+    else:
+        df = pd.DataFrame(remaining, columns=["Form", "TaskIndex"])
+    summary = df.groupby("Form", as_index=False)["TaskIndex"].count()
+    try:
+        with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+            df.to_excel(writer, index=False, sheet_name="Remaining")
+            summary.to_excel(writer, index=False, sheet_name="Summary")
+    except Exception as e:
+        sys.stderr.write(f"Failed to write report '{output_file}': {e}\n")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Report unreturned tasks")
     parser.add_argument(
@@ -128,6 +148,11 @@ def main(argv=None):
         default=DEFAULT_RETURNED_FILE,
         help="Excel file listing already returned tasks (default: %(default)s)",
     )
+    parser.add_argument(
+        "-o",
+        "--output",
+        help="Write an Excel report to this file",
+    )
     args = parser.parse_args(argv)
 
     required = _load_required_tasks(args.zs)
@@ -138,6 +163,10 @@ def main(argv=None):
         sys.stderr.write("No returned task information loaded or file missing.\n")
 
     remaining = compute_unreturned(required, returned)
+    if args.output:
+        save_report(remaining, args.output)
+        print(f"Report written to {args.output}")
+
     if remaining:
         print("Tasks still to be returned:")
         for form_no, index in remaining:
