@@ -19,7 +19,8 @@ It reads `0615.xlsx`, converts the sixth column (column F) to numbers and prints
 `task_report.py` compares tasks listed in
 `ZS-沪乍杭-线路任务单一览表-补定测.xlsx` with those already returned in
 `对应表格.xlsx`.
-It prints the identifiers of tasks that still need to be returned. Both spreadsheets are read without headers. Place these two spreadsheets in the repository root before running the script.
+The ZS workbook contains many worksheets named with the two-digit task order. The script scans all sheets whose names begin with digits and extracts codes like "03-01" from the first columns.
+It then compares them against the returned codes in `对应表格.xlsx` and prints the identifiers of tasks that still need to be returned. Place both spreadsheets in the repository root before running the script.
 
 Run it after installing the requirements. You can override the filenames with `--zs` and `--returned`:
 

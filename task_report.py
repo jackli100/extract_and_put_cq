@@ -55,9 +55,12 @@ def _parse_task_code(value: object):
     return form_no, index
 
 
+TASK_TEXT_RE = re.compile(r"(\d+)[-－](\d+)")
+
+
 def _load_required_tasks(filename: str = DEFAULT_ZS_FILE):
     try:
-        df = pd.read_excel(filename, header=None)
+        xls = pd.ExcelFile(filename)
     except FileNotFoundError:
         sys.stderr.write(f"File '{filename}' not found\n")
         return set()
@@ -66,10 +69,18 @@ def _load_required_tasks(filename: str = DEFAULT_ZS_FILE):
         return set()
 
     tasks = set()
-    for value in df.iloc[:, 0].tolist():
-        parsed = _parse_task_code(value)
-        if parsed:
-            tasks.add(parsed)
+    for sheet in xls.sheet_names:
+        if not re.match(r"\d+", sheet):
+            continue  # skip summary or other sheets
+        df = xls.parse(sheet, header=None)
+        for row in df.itertuples(index=False):
+            for cell in row:
+                if isinstance(cell, str):
+                    m = TASK_TEXT_RE.search(cell)
+                    if m:
+                        form_no, index = m.groups()
+                        tasks.add((form_no.zfill(2), index.zfill(2)))
+                        break
     return tasks
 
 
@@ -84,11 +95,10 @@ def _load_returned_tasks(filename: str = DEFAULT_RETURNED_FILE):
         return {}
 
     returned = defaultdict(set)  # form_no -> set of indices or {"AL"}
-    for value in df.iloc[:, 1].tolist():
-        parsed = _parse_task_code(value)
-        if parsed:
-            form_no, index = parsed
-            returned[form_no].add(index)
+    for value in df.iloc[:, 1].dropna().tolist():
+        text = str(value)
+        for form_no, index in TASK_CODE_RE.findall(text.upper()):
+            returned[form_no].add(index.upper())
     return returned
 
 
