@@ -16,9 +16,9 @@ def read_f_column_and_calculate_sum():
     print("=" * 60)
     
     try:
-        # 读取Excel文件，第一行开始就是数据，所以不跳过任何行
+        # 读取Excel文件，包含首行标题在内
         print("📖 正在读取Excel文件...")
-        df = pd.read_excel(file_name)
+        df = pd.read_excel(file_name, header=None)
         print(f"✅ 文件读取成功，共 {len(df)} 行数据")
         
         # 检查是否有F列（索引为5，因为从0开始计数）
@@ -199,3 +199,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
