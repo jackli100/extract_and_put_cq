@@ -34,7 +34,10 @@ except Exception:
 DEFAULT_ZS_FILE = "ZS-沪乍杭-线路任务单一览表-补定测.xlsx"
 DEFAULT_RETURNED_FILE = "对应表格.xlsx"
 
-TASK_CODE_RE = re.compile(r"(\d{2})(\d{2}|AL)$", re.IGNORECASE)
+# Match a task code consisting of two digits for the form number followed by two
+# digits or ``AL`` for the task index. The negative look-behind/ahead ensure the
+# code is not part of a longer sequence of digits.
+TASK_CODE_RE = re.compile(r"(?<!\d)(\d{2})(\d{2}|AL)(?!\d)", re.IGNORECASE)
 
 
 def _parse_task_code(value: object):
@@ -99,6 +102,9 @@ def _load_returned_tasks(filename: str = DEFAULT_RETURNED_FILE):
     for value in df.iloc[:, 1].dropna().tolist():
         text = str(value)
         for form_no, index in TASK_CODE_RE.findall(text.upper()):
+            # ignore unknown mapping "0000"
+            if form_no == "00" and index == "00":
+                continue
             returned[form_no].add(index.upper())
     return returned
 
