@@ -12,4 +12,7 @@ First install the requirements:
 pip install -r requirements.txt
 ```
 
-`calc_area.py` reads `0615.xlsx`, cleans up the sixth column (column F) and converts any numeric strings to floats. Cells containing non-numeric text are ignored. The script then prints the total sum of the numeric values.
+`calc_area.py` automatically converts the sixth column (column F) of `0615.xlsx`
+to integers before computing the sum. Any cells that cannot be parsed as numbers
+are ignored. Run the script after installing the requirements to see the total
+area value printed to the console.
