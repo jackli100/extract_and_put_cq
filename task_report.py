@@ -18,6 +18,7 @@ unreturned.
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
 from collections import defaultdict
@@ -28,6 +29,9 @@ except Exception:
     sys.stderr.write("pandas is required to run this script\n")
     raise
 
+
+DEFAULT_ZS_FILE = "ZS-沪乍杭-线路任务单一览表-补定测.xlsx"
+DEFAULT_RETURNED_FILE = "对应表格.xlsx"
 
 TASK_CODE_RE = re.compile(r"(\d{2})(\d{2}|AL)$", re.IGNORECASE)
 
@@ -51,7 +55,7 @@ def _parse_task_code(value: object):
     return form_no, index
 
 
-def _load_required_tasks(filename: str = "ZS-沪乍杭-线路任务单一览表-补定测.xlsx"):
+def _load_required_tasks(filename: str = DEFAULT_ZS_FILE):
     try:
         df = pd.read_excel(filename, header=None)
     except FileNotFoundError:
@@ -69,7 +73,7 @@ def _load_required_tasks(filename: str = "ZS-沪乍杭-线路任务单一览表-
     return tasks
 
 
-def _load_returned_tasks(filename: str = "对应表格.xlsx"):
+def _load_returned_tasks(filename: str = DEFAULT_RETURNED_FILE):
     try:
         df = pd.read_excel(filename, header=None)
     except FileNotFoundError:
@@ -102,9 +106,22 @@ def compute_unreturned(required_tasks, returned_tasks):
     return remaining
 
 
-def main():
-    required = _load_required_tasks()
-    returned = _load_returned_tasks()
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Report unreturned tasks")
+    parser.add_argument(
+        "--zs",
+        default=DEFAULT_ZS_FILE,
+        help="Excel file listing required tasks (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--returned",
+        default=DEFAULT_RETURNED_FILE,
+        help="Excel file listing already returned tasks (default: %(default)s)",
+    )
+    args = parser.parse_args(argv)
+
+    required = _load_required_tasks(args.zs)
+    returned = _load_returned_tasks(args.returned)
     if not required:
         sys.stderr.write("No required tasks loaded or file missing.\n")
     if not returned:

@@ -21,8 +21,8 @@ It reads `0615.xlsx`, converts the sixth column (column F) to numbers and prints
 `对应表格.xlsx`.
 It prints the identifiers of tasks that still need to be returned. Both spreadsheets are read without headers. Place these two spreadsheets in the repository root before running the script.
 
-Run it after installing the requirements:
+Run it after installing the requirements. You can override the filenames with `--zs` and `--returned`:
 
 ```bash
-python task_report.py
+python task_report.py --zs ZS-沪乍杭-线路任务单一览表-补定测.xlsx --returned 对应表格.xlsx
 ```
