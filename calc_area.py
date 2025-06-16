@@ -22,7 +22,12 @@ def main(filename="0615.xlsx", column_index=5):
         sys.stderr.write(f"File only has {len(df.columns)} columns; cannot read column {column_index+1}\n")
         return 1
 
-    numeric = pd.to_numeric(df.iloc[:, column_index], errors="coerce")
+    # Read the target column and attempt to parse numeric values. If the cell
+    # contains extra text such as units, we ignore it by coercing to NaN. This
+    # avoids misinterpreting strings like "(m2)" as numbers.
+    col = df.iloc[:, column_index].astype(str).str.replace(',', '').str.strip()
+    mask = col.str.match(r'^[-+]?\d*\.?\d*$')
+    numeric = pd.to_numeric(col.where(mask), errors="coerce")
     total = numeric.sum(skipna=True)
     print(total)
     return 0
