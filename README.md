@@ -16,8 +16,10 @@ It reads `0615.xlsx`, converts the sixth column (column F) to numbers and prints
 
 ## Task report
 
-`task_report.py` compares tasks listed in `ZS.xlsx` with those already returned in `对应表格.xlsx`.
-It prints the identifiers of tasks that still need to be returned. Both spreadsheets are read without headers.
+`task_report.py` compares tasks listed in
+`ZS-沪乍杭-线路任务单一览表-补定测.xlsx` with those already returned in
+`对应表格.xlsx`.
+It prints the identifiers of tasks that still need to be returned. Both spreadsheets are read without headers. Place these two spreadsheets in the repository root before running the script.
 
 Run it after installing the requirements:
 

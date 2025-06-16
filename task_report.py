@@ -2,7 +2,7 @@
 """Generate a report of tasks that still need to be returned.
 
 The script reads two Excel files:
- - `ZS.xlsx`: column A lists every task that must be returned. Each
+ - `ZS-沪乍杭-线路任务单一览表-补定测.xlsx`: column A lists every task that must be returned. Each
    value in column A should contain a form number plus a task index,
    e.g. "0101" meaning form 01 task 01.
  - `对应表格.xlsx`: the first column is a file name, the second column
@@ -51,7 +51,7 @@ def _parse_task_code(value: object):
     return form_no, index
 
 
-def _load_required_tasks(filename: str = "ZS.xlsx"):
+def _load_required_tasks(filename: str = "ZS-沪乍杭-线路任务单一览表-补定测.xlsx"):
     try:
         df = pd.read_excel(filename, header=None)
     except FileNotFoundError:
