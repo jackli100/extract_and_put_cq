@@ -13,3 +13,14 @@ pip install -r requirements.txt
 ```
 
 It reads `0615.xlsx`, converts the sixth column (column F) to numbers and prints the sum.
+
+## Task report
+
+`task_report.py` compares tasks listed in `ZS.xlsx` with those already returned in `对应表格.xlsx`.
+It prints the identifiers of tasks that still need to be returned. Both spreadsheets are read without headers.
+
+Run it after installing the requirements:
+
+```bash
+python task_report.py
+```
