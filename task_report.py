@@ -150,8 +150,9 @@ def compute_summary(required_tasks, returned_tasks):
     ``returned_tasks`` maps form numbers to sets of returned indices or
     ``{"AL"}`` when all are returned.
 
-    Returns a tuple ``(remaining, summary, categories)`` where ``categories``
-    lists totals and returned counts for each recognised category.
+    Returns ``(remaining, summary, categories, detail)`` where ``categories``
+    lists totals and returned counts for each recognised category and ``detail``
+    contains one row per classified task with a returned flag.
     """
     required_map: defaultdict[str, dict[str, str | None]] = defaultdict(dict)
     for (form_no, index), category in required_tasks.items():
@@ -161,6 +162,7 @@ def compute_summary(required_tasks, returned_tasks):
     remaining = []
     class_total: defaultdict[str, int] = defaultdict(int)
     class_returned: defaultdict[str, int] = defaultdict(int)
+    detail_rows: List[dict] = []
     for form_no in sorted(required_map):
         tasks = required_map[form_no]
         required_indices = set(tasks.keys())
@@ -186,29 +188,39 @@ def compute_summary(required_tasks, returned_tasks):
             }
         )
         for idx, cat in tasks.items():
+            returned_flag = "AL" in returned_indices or idx in returned_indices
             if cat:
                 class_total[cat] += 1
-                if "AL" in returned_indices or idx in returned_indices:
+                if returned_flag:
                     class_returned[cat] += 1
+                detail_rows.append(
+                    {
+                        "Category": cat,
+                        "Task": f"{form_no}{idx}",
+                        "Returned": "Yes" if returned_flag else "No",
+                    }
+                )
             if idx in missing_indices:
                 remaining.append((form_no, idx))
     category_summary = [
         {"Category": k, "Total": class_total[k], "Returned": class_returned.get(k, 0)}
         for k in class_total
     ]
-    return remaining, summary, category_summary
+    return remaining, summary, category_summary, detail_rows
 
 
 def save_report(
     remaining: Iterable[tuple[str, str]],
     summary: List[dict],
     categories: List[dict],
+    details: List[dict],
     output_file: str,
 ) -> None:
     """Save a visual report of remaining tasks to ``output_file``.
 
-    The report contains a sheet listing each remaining task and a summary
-    sheet with counts per form number and return ratios.
+    The report contains a sheet listing each remaining task, a summary
+    sheet with counts per form number and return ratios, a category total
+    sheet and a category detail sheet showing each classified task.
     """
     if not remaining:
         df = pd.DataFrame(columns=["Form", "TaskIndex"])
@@ -216,12 +228,15 @@ def save_report(
         df = pd.DataFrame(remaining, columns=["Form", "TaskIndex"])
     summary_df = pd.DataFrame(summary)
     category_df = pd.DataFrame(categories)
+    detail_df = pd.DataFrame(details)
     try:
         with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
             df.to_excel(writer, index=False, sheet_name="Remaining")
             summary_df.to_excel(writer, index=False, sheet_name="Summary")
             if not category_df.empty:
                 category_df.to_excel(writer, index=False, sheet_name="Category")
+            if not detail_df.empty:
+                detail_df.to_excel(writer, index=False, sheet_name="CategoryDetail")
     except Exception as e:
         sys.stderr.write(f"Failed to write report '{output_file}': {e}\n")
 
@@ -278,9 +293,9 @@ def main(argv=None):
     if not returned:
         sys.stderr.write("No returned task information loaded or file missing.\n")
 
-    remaining, summary, categories = compute_summary(required, returned)
+    remaining, summary, categories, detail = compute_summary(required, returned)
     if args.output:
-        save_report(remaining, summary, categories, args.output)
+        save_report(remaining, summary, categories, detail, args.output)
         print(f"Report written to {args.output}")
     if args.chart:
         save_bar_chart(summary, args.chart)
