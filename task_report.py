@@ -23,6 +23,7 @@ import re
 import sys
 from collections import defaultdict
 from typing import Iterable, List
+import os
 
 try:
     import pandas as pd
@@ -262,6 +263,57 @@ def save_bar_chart(summary: List[dict], chart_file: str) -> None:
         plt.close()
 
 
+def mark_zs_file(zs_file: str, returned_tasks: dict[str, set[str]]) -> str:
+    """Write return flags into the ZS workbook.
+
+    The function scans sheets named with digits, looks for task codes in
+    each row and writes ``"是"`` (yes) or ``"否"`` (no) to the column titled
+    ``"是否返回"`` if present, otherwise column B. The processed workbook is
+    saved with ``_processed`` appended to the original file name and the
+    path of the written file is returned.
+    """
+    try:
+        import openpyxl
+    except Exception:
+        sys.stderr.write("openpyxl is required to mark the workbook\n")
+        return ""
+
+    wb = openpyxl.load_workbook(zs_file)
+    for sheet_name in wb.sheetnames:
+        if not re.match(r"\d+", sheet_name):
+            continue
+        ws = wb[sheet_name]
+        header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        try:
+            return_col = header.index("是否返回") + 1
+        except ValueError:
+            return_col = 2
+        task_col = 1
+        for row in range(2, ws.max_row + 1):
+            cells = [ws.cell(row=row, column=task_col).value]
+            if cells[0] is None:
+                # if column A empty, check rest of row
+                cells = [c.value for c in ws[row]]
+            code = None
+            for cell in cells:
+                if isinstance(cell, str):
+                    m = TASK_TEXT_RE.search(cell)
+                    if m:
+                        code = (m.group(1).zfill(2), m.group(2).zfill(2))
+                        break
+            if not code:
+                continue
+            form_no, index = code
+            returned_indices = returned_tasks.get(form_no, set())
+            returned_flag = ("AL" in returned_indices) or (index in returned_indices)
+            ws.cell(row=row, column=return_col, value="是" if returned_flag else "否")
+
+    base, ext = os.path.splitext(zs_file)
+    output_file = f"{base}_processed{ext}"
+    wb.save(output_file)
+    return output_file
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Report unreturned tasks")
     parser.add_argument(
@@ -294,6 +346,9 @@ def main(argv=None):
         sys.stderr.write("No returned task information loaded or file missing.\n")
 
     remaining, summary, categories, detail = compute_summary(required, returned)
+    processed = mark_zs_file(args.zs, returned)
+    if processed:
+        print(f"Processed workbook saved to {processed}")
     if args.output:
         save_report(remaining, summary, categories, detail, args.output)
         print(f"Report written to {args.output}")
