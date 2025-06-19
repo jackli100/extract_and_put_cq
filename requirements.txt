@@ -1,3 +1,4 @@
 pandas
 openpyxl
 matplotlib
+ezdxf>=1.2.0
