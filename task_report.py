@@ -350,7 +350,18 @@ def mark_zs_file(
                 returned_i = int(returned_val)
             except Exception:
                 continue
-            info = type_summary.setdefault(str(task_type), {"提出数量": 0, "符合要求数量": 0})
+
+
+            task_key = str(task_type).strip()
+            if "核补地形" in task_key and task_key != "核补地形":
+                task_key = "核补地形"
+
+            if total_i == 0 and returned_i == 0:
+                # Skip categories with no tasks
+                continue
+
+            info = type_summary.setdefault(task_key, {"提出数量": 0, "符合要求数量": 0})
+
             info["提出数量"] += total_i
             info["符合要求数量"] += returned_i
 
