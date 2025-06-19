@@ -351,6 +351,7 @@ def mark_zs_file(
             except Exception:
                 continue
 
+
             task_key = str(task_type).strip()
             if "核补地形" in task_key and task_key != "核补地形":
                 task_key = "核补地形"
@@ -360,6 +361,7 @@ def mark_zs_file(
                 continue
 
             info = type_summary.setdefault(task_key, {"提出数量": 0, "符合要求数量": 0})
+
             info["提出数量"] += total_i
             info["符合要求数量"] += returned_i
 
