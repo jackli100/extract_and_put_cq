@@ -28,3 +28,13 @@ Run it after installing the requirements. You can override the filenames with `-
 python task_report.py --zs ZS-沪乍杭-线路任务单一览表-补定测.xlsx --returned 对应表格.xlsx
 python task_report.py -o report.xlsx -c progress.png
 ```
+
+## CAD Utilities
+
+Three small scripts help with DWG/DXF files:
+
+- `collect_dwg.py SRC DEST` copies all `.dwg` files under `SRC` to `DEST` skipping duplicate file names.
+- `convert_dwg_to_dxf.py SRC DEST` converts DWG files in `SRC` to DXF files written to `DEST` using the ODA File Converter.
+- `merge_dxf.py OUTPUT FILES...` merges the contents of multiple DXF files into one file `OUTPUT`.
+
+The conversion and merge scripts require `ezdxf` and the ODA File Converter to be installed.
