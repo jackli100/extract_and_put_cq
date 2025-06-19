@@ -270,9 +270,9 @@ def mark_zs_file(
 
     The function scans sheets named with digits, writes ``"是"`` (yes) or
     ``"否"`` (no) in the ``"是否返回"`` column for each task and fills the
-    "汇总" sheet with the total number of tasks and returned counts. It
-    also aggregates these numbers by the task type found in column B of
-    the "汇总" sheet.  The processed workbook is saved with ``_processed``
+    "汇总" sheet with the total number of tasks and returned counts.  It
+    then reads columns B, D and E of that sheet to aggregate totals by
+    task type. The processed workbook is saved with ``_processed``
     appended to the original file name and the path of the written file
     is returned together with the type summary.
     """
@@ -338,11 +338,21 @@ def mark_zs_file(
             if stats:
                 ws.cell(row=row, column=4, value=stats[0])
                 ws.cell(row=row, column=5, value=stats[1])
-                task_type = ws.cell(row=row, column=2).value
-                if task_type:
-                    info = type_summary.setdefault(task_type, {"提出数量": 0, "符合要求数量": 0})
-                    info["提出数量"] += stats[0]
-                    info["符合要求数量"] += stats[1]
+
+        for row in range(2, ws.max_row + 1):
+            task_type = ws.cell(row=row, column=2).value
+            total = ws.cell(row=row, column=4).value
+            returned_val = ws.cell(row=row, column=5).value
+            if task_type is None or total is None or returned_val is None:
+                continue
+            try:
+                total_i = int(total)
+                returned_i = int(returned_val)
+            except Exception:
+                continue
+            info = type_summary.setdefault(str(task_type), {"提出数量": 0, "符合要求数量": 0})
+            info["提出数量"] += total_i
+            info["符合要求数量"] += returned_i
 
     base, ext = os.path.splitext(zs_file)
     output_file = f"{base}_processed{ext}"
