@@ -263,14 +263,18 @@ def save_bar_chart(summary: List[dict], chart_file: str) -> None:
         plt.close()
 
 
-def mark_zs_file(zs_file: str, returned_tasks: dict[str, set[str]]) -> str:
-    """Write return flags into the ZS workbook.
+def mark_zs_file(
+    zs_file: str, returned_tasks: dict[str, set[str]]
+) -> tuple[str, dict[str, dict[str, int]]]:
+    """Write return flags into the ZS workbook and update the summary sheet.
 
-    The function scans sheets named with digits, looks for task codes in
-    each row and writes ``"是"`` (yes) or ``"否"`` (no) to the column titled
-    ``"是否返回"`` if present, otherwise column B. The processed workbook is
-    saved with ``_processed`` appended to the original file name and the
-    path of the written file is returned.
+    The function scans sheets named with digits, writes ``"是"`` (yes) or
+    ``"否"`` (no) in the ``"是否返回"`` column for each task and fills the
+    "汇总" sheet with the total number of tasks and returned counts. It
+    also aggregates these numbers by the task type found in column B of
+    the "汇总" sheet.  The processed workbook is saved with ``_processed``
+    appended to the original file name and the path of the written file
+    is returned together with the type summary.
     """
     try:
         import openpyxl
@@ -279,6 +283,8 @@ def mark_zs_file(zs_file: str, returned_tasks: dict[str, set[str]]) -> str:
         return ""
 
     wb = openpyxl.load_workbook(zs_file)
+    form_stats: dict[str, list[int]] = {}
+
     for sheet_name in wb.sheetnames:
         if not re.match(r"\d+", sheet_name):
             continue
@@ -289,6 +295,8 @@ def mark_zs_file(zs_file: str, returned_tasks: dict[str, set[str]]) -> str:
         except ValueError:
             return_col = 2
         task_col = 1
+        total = 0
+        returned_count = 0
         for row in range(2, ws.max_row + 1):
             cells = [ws.cell(row=row, column=task_col).value]
             if cells[0] is None:
@@ -307,11 +315,39 @@ def mark_zs_file(zs_file: str, returned_tasks: dict[str, set[str]]) -> str:
             returned_indices = returned_tasks.get(form_no, set())
             returned_flag = ("AL" in returned_indices) or (index in returned_indices)
             ws.cell(row=row, column=return_col, value="是" if returned_flag else "否")
+            total += 1
+            if returned_flag:
+                returned_count += 1
+
+        base_form = re.match(r"(\d+)", sheet_name).group(1).zfill(2)
+        prev = form_stats.get(base_form, [0, 0])
+        form_stats[base_form] = [prev[0] + total, prev[1] + returned_count]
+
+    type_summary: dict[str, dict[str, int]] = {}
+    if "汇总" in wb.sheetnames:
+        ws = wb["汇总"]
+        for row in range(2, ws.max_row + 1):
+            form_val = ws.cell(row=row, column=1).value
+            if form_val is None:
+                continue
+            form_str = str(form_val).strip()
+            if not form_str or not re.match(r"\d+", form_str):
+                continue
+            form_no = re.match(r"\d+", form_str).group(0).zfill(2)
+            stats = form_stats.get(form_no)
+            if stats:
+                ws.cell(row=row, column=4, value=stats[0])
+                ws.cell(row=row, column=5, value=stats[1])
+                task_type = ws.cell(row=row, column=2).value
+                if task_type:
+                    info = type_summary.setdefault(task_type, {"提出数量": 0, "符合要求数量": 0})
+                    info["提出数量"] += stats[0]
+                    info["符合要求数量"] += stats[1]
 
     base, ext = os.path.splitext(zs_file)
     output_file = f"{base}_processed{ext}"
     wb.save(output_file)
-    return output_file
+    return output_file, type_summary
 
 
 def main(argv=None):
@@ -346,9 +382,13 @@ def main(argv=None):
         sys.stderr.write("No returned task information loaded or file missing.\n")
 
     remaining, summary, categories, detail = compute_summary(required, returned)
-    processed = mark_zs_file(args.zs, returned)
+    processed, type_summary = mark_zs_file(args.zs, returned)
     if processed:
         print(f"Processed workbook saved to {processed}")
+        if type_summary:
+            print("\u4efb\u52a1\u7c7b\u578b\u7edf\u8ba1:")  # 任务类型统计
+            for t, info in type_summary.items():
+                print(f"{t}: \u63d0\u51fa{info['提出数量']}\u6761, \u8fd4\u56de{info['符合要求数量']}\u6761")
     if args.output:
         save_report(remaining, summary, categories, detail, args.output)
         print(f"Report written to {args.output}")
