@@ -173,7 +173,7 @@ def merge_dxf_with_layers(source_directory, output_file, use_filename_as_layer=T
 if __name__ == '__main__':
     # 设置源目录和输出文件
     source_dir = r'C:\Users\Administrator\Documents\沪乍杭补定测\04-任务单\测绘返任务单\dxfs'  # 修改为你的DXF文件目录
-    output_path = r'merged.dxf'    # 修改为你想要的输出文件路径
+    output_path = r'反任务单汇总.dxf'    # 修改为你想要的输出文件路径
     
     # 方式1: 简单合并，保持原有图层
     merge_dxf_files(source_dir, output_path)

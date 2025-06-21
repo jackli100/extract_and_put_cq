@@ -33,7 +33,7 @@ except Exception:
     raise
 
 
-DEFAULT_ZS_FILE = "ZS-沪乍杭-线路任务单一览表-补定测.xlsx"
+DEFAULT_ZS_FILE = "沪乍杭-线路任务单一览表-补定测.xlsx"
 DEFAULT_RETURNED_FILE = "对应表格.xlsx"
 
 # Match a task code consisting of two digits for the form number followed by two
