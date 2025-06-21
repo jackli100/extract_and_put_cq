@@ -4,6 +4,14 @@ from ezdxf.addons import Importer
 from pathlib import Path
 
 
+def _reset_insbase(doc: ezdxf.EzDxfDocument) -> None:
+    """Set INSBASE of *doc* to (0, 0, 0) to avoid automatic offsets."""
+    try:
+        doc.header["$INSBASE"] = (0, 0, 0)
+    except Exception:
+        pass
+
+
 def merge_from_folder(folder_path: str, output: str) -> None:
     """Merge all DXF files from a folder into a single output DXF."""
     folder = Path(folder_path)
@@ -35,7 +43,8 @@ def merge_from_folder(folder_path: str, output: str) -> None:
         except Exception as e:
             print(f"Failed to read {dxf_file}: {e}")
             continue
-        
+
+        _reset_insbase(doc)
         importer = Importer(doc, merged)
         importer.import_modelspace(msp)
         importer.finalize()
@@ -62,6 +71,7 @@ def merge(files, output: str) -> None:
         except Exception as e:
             print(f"Failed to read {f}: {e}")
             continue
+        _reset_insbase(doc)
         importer = Importer(doc, merged)
         importer.import_modelspace(msp)
         importer.finalize()
