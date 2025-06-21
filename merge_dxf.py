@@ -1,10 +1,11 @@
 import argparse
 import ezdxf
 from ezdxf.addons import Importer
+from ezdxf.document import Drawing
 from pathlib import Path
 
 
-def _reset_insbase(doc: ezdxf.EzDxfDocument) -> None:
+def _reset_insbase(doc: Drawing) -> None:
     """Set INSBASE of *doc* to (0, 0, 0) to avoid automatic offsets."""
     try:
         doc.header["$INSBASE"] = (0, 0, 0)
